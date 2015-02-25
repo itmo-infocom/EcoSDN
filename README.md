@@ -13,9 +13,9 @@ The module rest_qos_ss.py is used to provide REST API for QoS settings in of12so
 
 To run the module make sure that [ryu](https://github.com/osrg/ryu/tree/master/ryu) is already installed.
 
-run the module
+run the module located at ryuapps
 ```bash
-# ryu-manager rest_qos_ss.py qos_simple_switch_12.py rest_conf_switch.py 
+# ryu-manager rest_qos_ss.py qos_simple_switch_12.py rest_conf_switch.py conf_switch_key.py
 ```
 
 run mininet
