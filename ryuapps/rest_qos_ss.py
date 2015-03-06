@@ -7,7 +7,7 @@ import re
 
 from webob import Response
 
-from ryu.app import conf_switch_key as cs_key
+import conf_switch_key as cs_key
 from ryu.app.wsgi import ControllerBase, WSGIApplication, route
 from ryu.base import app_manager
 from ryu.controller import conf_switch
