@@ -1,6 +1,7 @@
 from operator import attrgetter
 
-from ryu.app import simple_switch_13
+import simple_switch_13
+import custom_event
 from ryu.controller import ofp_event
 from ryu.controller.handler import MAIN_DISPATCHER, DEAD_DISPATCHER
 from ryu.controller.handler import set_ev_cls
@@ -12,10 +13,12 @@ import requests
 import json
 import ast
 
-class SimpleMonitor(simple_switch_13.SimpleSwitch13):
+class RedundantSaver(simple_switch_13.SimpleSwitch13):
+
+    _EVENTS =  [custom_event.NewHostEvent]
 
     def __init__(self, *args, **kwargs):
-        super(SimpleMonitor, self).__init__(*args, **kwargs)
+        super(RedundantSaver, self).__init__(*args, **kwargs)
         self.datapaths = {}
         
         self.rx_bytes = [0,0]
@@ -24,7 +27,8 @@ class SimpleMonitor(simple_switch_13.SimpleSwitch13):
         self.ports = [1,1]
 
         self.monitoring_time = 5;
-        
+        self.hosts={}
+
         #self.macsOfSwitch={}
 
     @set_ev_cls(ofp_event.EventOFPStateChange,
@@ -32,7 +36,7 @@ class SimpleMonitor(simple_switch_13.SimpleSwitch13):
     def _state_change_handler(self, ev):
         if ev.state == MAIN_DISPATCHER:
           self.noBroadcastOnPort(2)
-          self.installBalancingRoutes()
+          #self.installBalancingRoutes()
 
     def noBroadcastOnPort(self,port=2):
         eth_dsts=["ff:ff:ff:ff:ff:ff","33:33:00:00:00:16","33:33:00:00:00:02"]
@@ -48,7 +52,7 @@ class SimpleMonitor(simple_switch_13.SimpleSwitch13):
                          "eth_dst": eth_dsts[i]
                             },
                       "actions":[
-                            
+                      #drop it                
                       ]
                     }
             response = requests.post(url,data=json.dumps(payload))
@@ -67,45 +71,6 @@ class SimpleMonitor(simple_switch_13.SimpleSwitch13):
                     }
             response = requests.post(url,data=json.dumps(payload))
             self.logger.info(response.text)
-
-    def installBalancingRoutes(self,remove=False):
-        out_port = 2
-        if remove:
-            out_port = 1
-        url = 'http://localhost:8080/stats/flowentry/modify'
-        payload = {
-                  "dpid": 2,
-                  "table_id": 0,
-                  "priority": 32768,
-                  "match": {
-                     "eth_dst": "00:00:00:00:00:12",
-                     "in_port":4
-                        },
-                  "actions":[ 
-                     {"type":"OUTPUT",
-                     "port": out_port}
-                  ]
-                }
-        response = requests.post(url,data=json.dumps(payload))
-        self.logger.info(response.text)
-
-    
-        url = 'http://localhost:8080/stats/flowentry/modify'
-        payload = {
-                  "dpid": 1,
-                  "table_id": 0,
-                  "priority": 32768,
-                  "match": {
-                     "eth_dst": "00:00:00:00:00:24",
-                     "in_port":4
-                        },
-                  "actions":[
-                     {"type":"OUTPUT",
-                     "port": out_port}
-                  ]
-                }
-        response = requests.post(url,data=json.dumps(payload))
-        self.logger.info(response.text)
 
     @set_ev_cls(ofp_event.EventOFPPortStatsReply, MAIN_DISPATCHER)
     def _port_stats_reply_handler(self, ev):
@@ -131,6 +96,7 @@ class SimpleMonitor(simple_switch_13.SimpleSwitch13):
                 self.rx_bytes [stat.port_no - 1] = stat.rx_bytes
 
                 #if not(self.isPortUp('1',2)) and self.utilization[stat.port_1]+self.utilization[stat.port_2] > 90:
+                
                 if not(self.isPortUp('1',2)) and self.utilization[stat.port_no-1] > 70:
                     #enable port 2 on both switches
                     self.logger.info("enabling port 2 and load balancing")
@@ -142,6 +108,7 @@ class SimpleMonitor(simple_switch_13.SimpleSwitch13):
                     self.installBalancingRoutes(True)
                     self._modify_port('1',2,1<<0,0xFFFFFFFF)
                     self._modify_port('2',2,1<<0,0xFFFFFFFF)
+                
             
 
 
@@ -156,6 +123,50 @@ class SimpleMonitor(simple_switch_13.SimpleSwitch13):
         response = requests.post(url,data=json.dumps(payload))
         self.logger.info(response.text)
         self.logger.info(response)
+
+    @set_ev_cls(custom_event.NewHostEvent)
+    def newHostConnected(self,ev):
+      print "---"
+      print ev.macAddr
+      print ev.dpid
+      print ev.port
+      print ev.hosts
+      print "---"
+
+      self.hosts = ev.hosts
+
+      if self.isPortUp('1',2):
+        self.installBalancingRoutes()
+      
+
+    def installBalancingRoutes(self,remove=False):
+        out_port = 2
+        if remove:
+            out_port = 1
+        self.installBalancingRoutesinSwitch(1,2,out_port)
+        self.installBalancingRoutesinSwitch(2,1,out_port)
+
+    def installBalancingRoutesinSwitch(self,dpid1,dpid2,out_port):
+      url = 'http://localhost:8080/stats/flowentry/modify'
+      if self.hosts.has_key(dpid1) and self.hosts.has_key(dpid2):
+        for ip,data in self.hosts[dpid1].iteritems():
+            if data['port'] % 2 == 0:
+              for ip2,data2 in self.hosts[dpid2].iteritems():
+                payload = {
+                          "dpid": dpid1,
+                          "table_id": 0,
+                          "priority": 32768,
+                          "match": {
+                             "eth_dst": data2['mac'],
+                             "in_port": data['port']
+                                },
+                          "actions":[ 
+                             {"type":"OUTPUT",
+                             "port": out_port}
+                          ]
+                        }
+                response = requests.post(url,data=json.dumps(payload))
+                self.logger.info(response.text)
 
     def isPortUp(self,dpid,port_no):
         url = "http://localhost:8080/stats/portdesc/"+dpid

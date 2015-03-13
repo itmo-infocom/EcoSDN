@@ -25,11 +25,6 @@ class PortStatsReporter(app_manager.RyuApp):
 			if not datapath.id in self.datapaths:
 			    self.logger.debug('register datapath: %016x', datapath.id)
 			    self.datapaths[datapath.id] = datapath
-			    #self.getMacsOfSwitch()
-			    #self.routeLoadBalance('10.0.0.1')
-			    #print self.mac_to_port
-			    self.noBroadcastOnPort(2)
-			    self.installBalancingRoutes()
 
 		elif ev.state == DEAD_DISPATCHER:
 		    if datapath.id in self.datapaths:
