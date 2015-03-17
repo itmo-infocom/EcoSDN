@@ -40,7 +40,7 @@ class RedundantSaver(simple_switch_13.SimpleSwitch13):
 
     def noBroadcastOnPort(self,port=2):
         eth_dsts=["ff:ff:ff:ff:ff:ff","33:33:00:00:00:16","33:33:00:00:00:02"]
-        #eth_dsts=["ff:ff:ff:ff:ff:ff","33:33:00:00:00:00/ff::ff"]
+        #eth_dsts=["ff:ff:ff:ff:ff:ff","33:33:00:00:00:00/33::ff"]
         for i in range(0,len(eth_dsts)):
             url = 'http://localhost:8080/stats/flowentry/add'
             payload = {
