@@ -24,7 +24,7 @@ class RedundantSaver(simple_switch_13.SimpleSwitch13):
         self.rx_bytes = [0,0]
         self.tx_bytes = [0,0]
         self.utilization= [0.0,0.0]
-        self.ports = [1,1]
+        self.portsConfig = [0,0]
 
         self.monitoring_time = 5;
         self.hosts={}
@@ -97,17 +97,21 @@ class RedundantSaver(simple_switch_13.SimpleSwitch13):
 
                 #if not(self.isPortUp('1',2)) and self.utilization[stat.port_1]+self.utilization[stat.port_2] > 90:
                 
-                if not(self.isPortUp('1',2)) and self.utilization[stat.port_no-1] > 70:
+                #if not(self.isPortUp('1',2)) and self.utilization[stat.port_no-1] > 70:
+                if (self.portsConfig[1] == 1 ) and self.utilization[stat.port_no-1] > 70:
                     #enable port 2 on both switches
                     self.logger.info("enabling port 2 and load balancing")
                     self._modify_port('1',2,0,0xFFFFFFFF)
                     self._modify_port('2',2,0,0xFFFFFFFF)
+                    self.portsConfig = [0,0]
                     self.installBalancingRoutes()
-                elif self.isPortUp('1',2) and (self.utilization[stat.port_no-1] < 80):
+                #elif self.isPortUp('1',2) and (self.utilization[stat.port_no-1] < 80):
+                elif (self.portsConfig[1] == 0)  and (self.utilization[stat.port_no-1] < 80):
                     self.logger.info("remove load balancing and disable port 2")
                     self.installBalancingRoutes(True)
                     self._modify_port('1',2,1<<0,0xFFFFFFFF)
                     self._modify_port('2',2,1<<0,0xFFFFFFFF)
+                    self.portsConfig = [1,1]
                 
             
 
@@ -126,16 +130,10 @@ class RedundantSaver(simple_switch_13.SimpleSwitch13):
 
     @set_ev_cls(custom_event.NewHostEvent)
     def newHostConnected(self,ev):
-      print "---"
-      print ev.macAddr
-      print ev.dpid
-      print ev.port
-      print ev.hosts
-      print "---"
-
       self.hosts = ev.hosts
 
-      if self.isPortUp('1',2):
+      #if self.isPortUp('1',2):
+      if self.portsConfig[1] == 0:
         self.installBalancingRoutes()
       
 
@@ -168,6 +166,7 @@ class RedundantSaver(simple_switch_13.SimpleSwitch13):
                 response = requests.post(url,data=json.dumps(payload))
                 self.logger.info(response.text)
 
+    '''    
     def isPortUp(self,dpid,port_no):
         url = "http://localhost:8080/stats/portdesc/"+dpid
         response = requests.get(url)
@@ -182,7 +181,7 @@ class RedundantSaver(simple_switch_13.SimpleSwitch13):
                     else:
                         return False
                     break
-
+    '''
     
 
 

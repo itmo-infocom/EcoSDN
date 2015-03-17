@@ -101,9 +101,9 @@ class HostTracker(app_manager.RyuApp):
             srcIP = arp_pkt.src_ip
 
 
-            self.logger.info("dpid "+dpid_lib.dpid_to_str(datapath.id))
-            self.logger.info("srcIP "+srcIP)
-            self.logger.info("srcMac "+srcMac)
+            #self.logger.info("dpid "+dpid_lib.dpid_to_str(datapath.id))
+            #self.logger.info("srcIP "+srcIP)
+            #self.logger.info("srcMac "+srcMac)
 
         elif eth.ethertype == ether.ETH_TYPE_IP:
             ip = pkt.get_protocols(ipv4.ipv4)[0]
