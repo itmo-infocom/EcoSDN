@@ -31,6 +31,7 @@ class MyPort:
 		self.portConfig = 0
 		self.connectedMac=None
 		self.rateConfig=0  #rate config = 0 means it's not using queue
+		self.qos_id="-1"
 
 
 class AdaptiveLinkRate(qos_simple_switch_13.SimpleSwitch13):
@@ -116,4 +117,17 @@ class AdaptiveLinkRate(qos_simple_switch_13.SimpleSwitch13):
 						response = requests.post(url,data=json.dumps(payload))
 						self.logger.info(response.text)
 						self.ports[stat.port_no].rateConfig = 1
+						#getting qos_id
+						data = response.json()
+						self.ports[stat.port_no].qos_id = self.logger.info(data[0]["command_result"][0]["details"].split("=")[1])
+
+						
+					elif (self.ports[stat.port_no].utilization > 10) or (self.ports[stat.port_no].rateConfig == 1):
+						self.logger.info("deinstalling queue flows")
+						url = 'http://localhost:8080/qos/rules/0000000000000001'
+						payload = {"qos_id" :self.ports[stat.port_no].qos_id }
+						response = requests.delete(url,data=json.dumps(payload))
+						self.logger.info(response.text)
+
+
 
