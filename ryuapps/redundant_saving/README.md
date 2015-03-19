@@ -1,6 +1,10 @@
 ###Saving Energy in redundank links
 This modules gives a sample on a network which uses both links in a redundant connection, or uses only 1 link when the utilization in the network is low.
 
+Python modules needed: requests
+<br>
+To install: ```$ pip install requests ```
+
 <br>
 #####Run mininet:
 ```bash
