@@ -33,6 +33,11 @@ set qos settings:
 curl -X POST -d '{"port_name": "1", "queues": [{"id": "1", "min_rate":"50"},{"id":"2", "min_rate": "50"}]}' \
  http://localhost:8080/qos/queue/0000000000000001
 ```
+it is also possible to set the max rate, for example:
+```bash
+curl -X POST -d '{"port_name": "1", "queues": [{"id": "1", "min_rate":"50", "max_rate":"70"}]}' \
+http://localhost:8080/qos/queue/0000000000000001
+```
 
 get qos settings:
 ```bash
