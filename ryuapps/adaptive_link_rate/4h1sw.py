@@ -18,7 +18,7 @@ if '__main__' == __name__:
     h3 = net.addHost('h3', mac='00:00:00:00:00:23')
     h4 = net.addHost('h4', mac='00:00:00:00:00:24')
     
-    bw=1
+    bw=100
     TCLink(s1, h1, bw=bw)
     TCLink(s1, h2, bw=bw)
     TCLink(s1, h3, bw=bw)
