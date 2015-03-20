@@ -15,6 +15,7 @@ from ryu.controller import ofp_event
 from ryu.controller.handler import MAIN_DISPATCHER, DEAD_DISPATCHER
 from ryu.controller.handler import set_ev_cls
 from ryu.lib import hub
+from ryu.lib import dpid as dpid_lib
 
 #import urllib
 #import urllib2
@@ -54,23 +55,23 @@ class AdaptiveLinkRate(qos_simple_switch_13.SimpleSwitch13):
 		for i in range(1,10):
 			self.ports.append(MyPort())
 
-	@set_ev_cls(ofp_event.EventOFPStateChange,[MAIN_DISPATCHER, DEAD_DISPATCHER])
-	def _state_change_handler(self, ev):
-		if ev.state == MAIN_DISPATCHER:
-			self.installQueueSettings()
+	#@set_ev_cls(ofp_event.EventOFPStateChange,[MAIN_DISPATCHER, DEAD_DISPATCHER])
+	#def _state_change_handler(self, ev):
+	#	if ev.state == MAIN_DISPATCHER:
+			#self.installQueueSettings()
 			#self.noBroadcastOnPort(2)
 			#self.installBalancingRoutes()
 
-	def installQueueSettings(self):
+	def installQueueSettings(self,dpidStr,port_name):
 		#set switch address, only for switch 1
-		url = 'http://localhost:8080/v1.0/conf/switches/0000000000000001/unix_socket'
+		url = 'http://localhost:8080/v1.0/conf/switches/'+dpidStr+'/unix_socket'
 		payload="/tmp/s1"
 		response = requests.put(url,data=json.dumps(payload))
 		self.logger.info(response.text)
 
 		#set queue settings on the switch 1, on port 1 only
-		url = 'http://localhost:8080/qos/queue/0000000000000001'
-		payload = {"port_name": "1", "queues": [{"id": "1", "min_rate":"50"}]}
+		url = 'http://localhost:8080/qos/queue/'+dpidStr
+		payload = {"port_name": port_name, "queues": [{"id": "1", "min_rate":"50"}]}
 		response = requests.post(url,data=json.dumps(payload))
 		self.logger.info(response.text)
 
@@ -82,6 +83,7 @@ class AdaptiveLinkRate(qos_simple_switch_13.SimpleSwitch13):
 		self.logger.info(ev.macAddr)
 		self.logger.info(ev.port)
 		
+	
 
 	@set_ev_cls(ofp_event.EventOFPPortStatsReply, MAIN_DISPATCHER)
 	def _port_stats_reply_handler(self, ev):
@@ -109,6 +111,9 @@ class AdaptiveLinkRate(qos_simple_switch_13.SimpleSwitch13):
 
 
 					if (self.ports[stat.port_no].utilization <= 10) and (self.ports[stat.port_no].connectedMac != None) and (self.ports[stat.port_no].rateConfig == 0):
+						#install queue settings first
+						self.installQueueSettings(dpid_lib.dpid_to_str(ev.msg.datapath.id),str(stat.port_no))
+
 						#install flows to the queue
 						self.logger.info("installing queue flows")
 						#url = 'http://localhost:8080/stats/flowentry/add'
@@ -122,7 +127,7 @@ class AdaptiveLinkRate(qos_simple_switch_13.SimpleSwitch13):
 						self.ports[stat.port_no].qos_id = self.logger.info(data[0]["command_result"][0]["details"].split("=")[1])
 
 						
-					elif (self.ports[stat.port_no].utilization > 10) or (self.ports[stat.port_no].rateConfig == 1):
+					elif (self.ports[stat.port_no].utilization > 10) and (self.ports[stat.port_no].rateConfig == 1):
 						self.logger.info("deinstalling queue flows")
 						url = 'http://localhost:8080/qos/rules/0000000000000001'
 						payload = {"qos_id" :self.ports[stat.port_no].qos_id }
