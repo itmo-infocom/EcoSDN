@@ -4,36 +4,59 @@ from ryu.controller.handler import MAIN_DISPATCHER, DEAD_DISPATCHER
 from ryu.controller.handler import set_ev_cls
 from ryu.lib import hub
 
-from ryu.lib.packet import ipv4
 from ryu.lib.packet import tcp
-from ryu.lib.packet import packet
+from ryu.lib.packet import ipv4
+from ryu.lib.packet import vlan
 from ryu.lib.packet import ethernet
+from ryu.lib.packet import packet
 from ryu.ofproto import ether
 from ryu.ofproto import inet
-from ryu.ofproto import ofproto_v1_0
+from ryu.ofproto import ofproto_v1_3
 
 import requests
 import json
 import ast
 
 class MultiPathDistributor(app_manager.RyuApp):
+	OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
 	def __init__(self, *args, **kwargs):
 		super(MultiPathDistributor, self).__init__(*args, **kwargs)
 		self.datapaths = {}
+		self.dpids=[1152966113386660480,1152966113386676544,1152966113385875392,1152966113386367424]
 		self.routesNode1toNode2 = [{1152966113386660480:"3,15", 1152966113386367424:"15,4"},
 								   {1152966113386660480:"3,14", 1152966113385875392:"14,15",1152966113386367424:"13,4"},
 								   {1152966113386660480:"3,13",1152966113386676544:"13,15",1152966113386367424:"14,4"},
 								   {1152966113386660480:"3,16",1152966113386367424:"16,4"}
 								   ]
 		self.flowCounts=0 #for round-robin purpose
-		self.ipNode1 = "10.0.0.1"
-		self.ipNode2 = "10.0.0.2"
+		self.ipNode1 = "10.10.2.14"
+		self.ipNode2 = "10.10.2.129"
 	
 	@set_ev_cls(ofp_event.EventOFPStateChange,
                 [MAIN_DISPATCHER, DEAD_DISPATCHER])
 	def _state_change_handler(self, ev):
 		if ev.state == MAIN_DISPATCHER:
+			self.installDefaultHPFlow()
 			self.installDefaultFlow()
+
+	def installDefaultHPFlow(self):
+		url = "http://localhost:8080/stats/flowentry/add" 
+		for switch_dpid in self.dpids:
+			payload = {
+                                  "dpid": switch_dpid,
+                                  "table_id": 100,
+                                  "priority": 0,
+                                  "match": {
+                                     
+                                        },
+                                  "actions":[
+                                     {"type":"GOTO_TABLE",
+                                     "table_id": 200}
+                                  ]
+                                }
+			response = requests.post(url,data=json.dumps(payload))
+			self.logger.info(response.text)
+			
 
 	def installDefaultFlow(self):
 		url = "http://localhost:8080/stats/flowentry/add"
@@ -45,8 +68,8 @@ class MultiPathDistributor(app_manager.RyuApp):
 			#default
 			payload = {
 			          "dpid": switch_dpid,
-			          "table_id": 0,
-			          "priority": 10,
+			          "table_id": 100,
+			          "priority": 1,
 			          "match": {
 			             "in_port" : inputport,
 			                },
@@ -61,8 +84,8 @@ class MultiPathDistributor(app_manager.RyuApp):
 			#install reverse flow
 			payload = {
 			          "dpid": switch_dpid,
-			          "table_id": 0,
-			          "priority": 10,
+			          "table_id": 100,
+			          "priority": 1,
 			          "match": {
 			             "in_port":outputport,
 			                },
@@ -77,17 +100,38 @@ class MultiPathDistributor(app_manager.RyuApp):
 		
 		#send bbcp flow firstly to controller, the one entering node 1 or node 2
 		payload = {
+		        "dpid": 1152966113386660480,
+			"table_id":100,
+			"priority":3,
+			"match":{
+				"dl_type": 0x800,
+				"nw_proto":6,
+				"tp_dst": 5031 
+			},
+			"actions":[
+				{
+					"type":"GOTO_TABLE",
+					"table_id":200		
+				}
+			]
+
+		}
+		response = requests.post(url,data=json.dumps(payload))
+		self.logger.info(response.text)
+
+
+		payload = {
 			          "dpid": 1152966113386660480,
-			          "table_id": 0,
+			          "table_id": 200,
 			          "priority": 15,
 			          "match": {
-			             "dl_type": 2048,
+			             "dl_type": 0x0800,
 			             "nw_proto": 6,
-			             "tp_dst": 5031,
+			             "tp_dst": 5031
 			                },
 			          "actions":[ 
 			             {"type":"OUTPUT",
-			             "port": ofproto_v1_0.OFPP_CONTROLLER
+			             "port": ofproto_v1_3.OFPP_CONTROLLER
 			             }
 			          ]
 			        }
@@ -104,15 +148,15 @@ class MultiPathDistributor(app_manager.RyuApp):
 			outputport = int(route_dict[switch_dpid].split(",")[1])
 			payload = {
 			          "dpid": switch_dpid,
-			          "table_id": 0,
-			          "priority": 32768,
+			          "table_id": 200,
+			          "priority": 30,
 			          "match": {
-			             "nw_src": ipSrc,
-			             "dl_type": 2048,
-			             "nw_dst": ipDst,
-			             "tp_src": tcpSrc, 
-			             "nw_proto": 6,
-			             "tp_dst": tcpDst,
+			             "ipv4_src": ipSrc,				  
+			             "eth_type": 0x800,
+			             "ipv4_dst": ipDst,
+			             "tcp_src": tcpSrc, 
+			             "ip_proto": 6,
+			             "tcp_dst": tcpDst,
 			                },
 			          "actions":[ 
 			             {"type":"OUTPUT",
@@ -125,15 +169,15 @@ class MultiPathDistributor(app_manager.RyuApp):
 			#install reverse flow
 			payload = {
 			          "dpid": switch_dpid,
-			          "table_id": 0,
-			          "priority": 32768,
-			          "match": {
-			             "nw_dst": ipSrc,
-			             "dl_type": 2048,
-			             "nw_src": ipDst,
-			             "tp_dst": tcpSrc, 
-			             "nw_proto": 6,
-			             "tp_src": tcpDst,
+			          "table_id": 200,
+			          "priority": 30,
+			          "match": {				    
+			             "ipv4_dst": ipSrc,
+			             "eth_type": 0x800,
+			             "ipv4_src": ipDst,
+			             "tcp_dst": tcpSrc, 
+			             "ip_proto": 6,
+			             "tcp_src": tcpDst,
 			                },
 			          "actions":[ 
 			             {"type":"OUTPUT",
@@ -159,13 +203,15 @@ class MultiPathDistributor(app_manager.RyuApp):
 
 		pkt = packet.Packet(msg.data)
 		eth = pkt.get_protocols(ethernet.ethernet)[0]
+		
+		print eth.ethertype
 
-		if eth.ethertype == ether.ETH_TYPE_IP:
+		if eth.ethertype == ether.ETH_TYPE_8021Q:
 			ip = pkt.get_protocols(ipv4.ipv4)[0]
 			srcIP = ip.src
 			dstIP = ip.dst
 
-			self.logger.info("packet in %s %s %s %s", datapath.id, srcIP, dstIP, msg.in_port)
+			self.logger.info("packet in %s %s %s %s", datapath.id, srcIP, dstIP, msg.match['in_port'])
 			if (srcIP ==self.ipNode1 and dstIP == self.ipNode2):
 
 				print ip.proto
@@ -198,7 +244,7 @@ class MultiPathDistributor(app_manager.RyuApp):
 		dpid = datapath.id
 		#self.mac_to_port.setdefault(dpid, {})
 
-		self.logger.info("packet in %s %s %s %s", dpid, src, dst, msg.in_port)
+		#self.logger.info("packet in %s %s %s %s", dpid, src, dst, msg.in_port)
 
 		
 
