@@ -11,14 +11,14 @@ from ryu.lib.packet import ethernet
 from ryu.lib.packet import packet
 from ryu.ofproto import ether
 from ryu.ofproto import inet
-from ryu.ofproto import ofproto_v1_3
+from ryu.ofproto import ofproto_v1_0
 
 import requests
 import json
 import ast
 
 class MultiPathDistributor(app_manager.RyuApp):
-	OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
+	#OFP_VERSIONS = [ofproto_v1_0.OFP_VERSION]
 	def __init__(self, *args, **kwargs):
 		super(MultiPathDistributor, self).__init__(*args, **kwargs)
 		self.datapaths = {}
@@ -36,7 +36,7 @@ class MultiPathDistributor(app_manager.RyuApp):
                 [MAIN_DISPATCHER, DEAD_DISPATCHER])
 	def _state_change_handler(self, ev):
 		if ev.state == MAIN_DISPATCHER:
-			self.installDefaultHPFlow()
+			#self.installDefaultHPFlow()
 			self.installDefaultFlow()
 
 	def installDefaultHPFlow(self):
@@ -68,7 +68,7 @@ class MultiPathDistributor(app_manager.RyuApp):
 			#default
 			payload = {
 			          "dpid": switch_dpid,
-			          "table_id": 100,
+			          "table_id": 0,
 			          "priority": 1,
 			          "match": {
 			             "in_port" : inputport,
@@ -84,7 +84,7 @@ class MultiPathDistributor(app_manager.RyuApp):
 			#install reverse flow
 			payload = {
 			          "dpid": switch_dpid,
-			          "table_id": 100,
+			          "table_id": 0,
 			          "priority": 1,
 			          "match": {
 			             "in_port":outputport,
@@ -96,35 +96,11 @@ class MultiPathDistributor(app_manager.RyuApp):
 			        }
 			response = requests.post(url,data=json.dumps(payload))
 			self.logger.info(response.text)
-
 		
-		#send bbcp flow firstly to controller, the one entering node 1 or node 2
-		payload = {
-		        "dpid": 1152966113386660480,
-			"table_id":100,
-			"priority":3,
-			"match":{
-				"dl_type": 0x800,
-				"ip_proto":6,
-				"tcp_dst": 5031,
-				"ipv4_src":self.ipNode1,
-				"ipv4_dst":self.ipNode2
-			},
-			"actions":[
-				{
-					"type":"GOTO_TABLE",
-					"table_id":200		
-				}
-			]
-
-		}
-		response = requests.post(url,data=json.dumps(payload))
-		self.logger.info(response.text)
-
-
+		
 		payload = {
 			          "dpid": 1152966113386660480,
-			          "table_id": 200,
+			          "table_id": 0,
 			          "priority": 15,
 			          "match": {
 			             "dl_type": 0x0800,
@@ -132,8 +108,9 @@ class MultiPathDistributor(app_manager.RyuApp):
 			             "tp_dst": 5031
 			                },
 			          "actions":[ 
+				     #{"type":"STRIP_VLAN"},
 			             {"type":"OUTPUT",
-			             "port": ofproto_v1_3.OFPP_CONTROLLER
+			             "port": ofproto_v1_0.OFPP_CONTROLLER
 			             }
 			          ]
 			        }
@@ -150,15 +127,15 @@ class MultiPathDistributor(app_manager.RyuApp):
 			outputport = int(route_dict[switch_dpid].split(",")[1])
 			payload = {
 			          "dpid": switch_dpid,
-			          "table_id": 100,
+			          "table_id": 0,
 			          "priority": 30,
 			          "match": {
-			             "ipv4_src": ipSrc,				  
-			             "eth_type": 0x800,
-			             "ipv4_dst": ipDst,
-			             "tcp_src": tcpSrc, 
-			             "ip_proto": 6,
-			             "tcp_dst": tcpDst,
+			             "nw_src": ipSrc,				  
+			             "dl_type": 0x800,
+			             "nw_dst": ipDst,
+			             "tp_src": tcpSrc, 
+			             "nw_proto": 6,
+			             "tp_dst": tcpDst,
 			                },
 			          "actions":[ 
 			             {"type":"OUTPUT",
@@ -166,20 +143,20 @@ class MultiPathDistributor(app_manager.RyuApp):
 			          ]
 			        }
 			response = requests.post(url,data=json.dumps(payload))
-			self.logger.info(response.text)
+			#self.logger.info(response.text)
 
 			#install reverse flow
 			payload = {
 			          "dpid": switch_dpid,
-			          "table_id": 100,
+			          "table_id": 0,
 			          "priority": 30,
 			          "match": {				    
-			             "ipv4_dst": ipSrc,
-			             "eth_type": 0x800,
-			             "ipv4_src": ipDst,
-			             "tcp_dst": tcpSrc, 
-			             "ip_proto": 6,
-			             "tcp_src": tcpDst,
+			             "nw_dst": ipSrc,
+			             "dl_type": 0x800,
+			             "nw_src": ipDst,
+			             "tp_dst": tcpSrc, 
+			             "nw_proto": 6,
+			             "tp_src": tcpDst,
 			                },
 			          "actions":[ 
 			             {"type":"OUTPUT",
@@ -187,7 +164,7 @@ class MultiPathDistributor(app_manager.RyuApp):
 			          ]
 			        }
 			response = requests.post(url,data=json.dumps(payload))
-			self.logger.info(response.text)
+			#self.logger.info(response.text)
 
 
 
@@ -207,34 +184,38 @@ class MultiPathDistributor(app_manager.RyuApp):
 		eth = pkt.get_protocols(ethernet.ethernet)[0]
 		
 		print eth.ethertype
+		print eth
 
-		if eth.ethertype == ether.ETH_TYPE_8021Q:
-			ip = pkt.get_protocols(ipv4.ipv4)[0]
-			srcIP = ip.src
-			dstIP = ip.dst
+		if eth.ethertype == ether.ETH_TYPE_IP or eth.ethertype == ether.ETH_TYPE_8021Q :
+			#print "vlan tagged packet received"
+			#pkt_vlan = pkt.get_protocols(vlan.vlan)[0]
+			if (pkt.get_protocols(ipv4.ipv4)):
+				ip = pkt.get_protocols(ipv4.ipv4)[0]
+				srcIP = ip.src
+				dstIP = ip.dst
 
-			self.logger.info("packet in %s %s %s %s", datapath.id, srcIP, dstIP, msg.match['in_port'])
-			if (srcIP ==self.ipNode1 and dstIP == self.ipNode2):
+				self.logger.info("packet in %s %s %s %s", datapath.id, srcIP, dstIP, msg.in_port)
+				if (srcIP ==self.ipNode1 and dstIP == self.ipNode2):
 
-				print ip.proto
+					print ip.proto
 
-				if (ip.proto == inet.IPPROTO_TCP):
-					tcp_pkt = pkt.get_protocols(tcp.tcp)[0]
-					srcTCP = tcp_pkt.src_port
-					dstTCP = tcp_pkt.dst_port
+					if (ip.proto == inet.IPPROTO_TCP):
+						tcp_pkt = pkt.get_protocols(tcp.tcp)[0]
+						srcTCP = tcp_pkt.src_port
+						dstTCP = tcp_pkt.dst_port
 
-					print "tcp packet is received"
-					print srcTCP
-					print dstTCP
+						print "tcp packet is received"
+						print srcTCP
+						print dstTCP
 
-					#bbcp flows
-					if (dstTCP == 5031):
-						#self,n,ipSrc,ipDst,tcpSrc,tcpDst
-						whichFlow = self.flowCounts % len(self.routesNode1toNode2)
-						self.installFlowN(whichFlow,srcIP,dstIP,srcTCP,dstTCP)
-						self.flowCounts = self.flowCounts + 1
-						self.logger.info("number of bbcp flows: %d",self.flowCounts)
-						self.logger.info("last bbcp flow  is installed to path %d",whichFlow)
+						#bbcp flows
+						if (dstTCP == 5031):
+							#self,n,ipSrc,ipDst,tcpSrc,tcpDst
+							whichFlow = self.flowCounts % len(self.routesNode1toNode2)
+							self.installFlowN(whichFlow,srcIP,dstIP,srcTCP,dstTCP)
+							self.flowCounts = self.flowCounts + 1
+							self.logger.info("number of bbcp flows: %d",self.flowCounts)
+							self.logger.info("last bbcp flow  is installed to path %d",whichFlow)
 
 
 
