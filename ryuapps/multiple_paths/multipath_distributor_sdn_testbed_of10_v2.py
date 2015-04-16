@@ -3,6 +3,7 @@ from ryu.controller import ofp_event
 from ryu.controller.handler import MAIN_DISPATCHER, DEAD_DISPATCHER
 from ryu.controller.handler import set_ev_cls
 from ryu.lib import hub
+from ryu.controller import dpset
 
 from ryu.lib.packet import tcp
 from ryu.lib.packet import ipv4
@@ -13,30 +14,39 @@ from ryu.ofproto import ether
 from ryu.ofproto import inet
 from ryu.ofproto import ofproto_v1_0
 
+from ryu.lib.ip import ipv4_to_bin
+
 import requests
 import json
 import ast
+import struct
 
 class MultiPathDistributor(app_manager.RyuApp):
 	#OFP_VERSIONS = [ofproto_v1_0.OFP_VERSION]
+	_CONTEXTS = {
+		'dpset':dpset.DPSet,
+	}
 	def __init__(self, *args, **kwargs):
 		super(MultiPathDistributor, self).__init__(*args, **kwargs)
 		self.datapaths = {}
 		self.dpids=[1152966113386660480,1152966113386676544,1152966113385875392,1152966113386367424]
-		self.routesNode1toNode2 = [{1152966113386660480:"3,15", 1152966113386367424:"15,4"},
-								 #  {1152966113386660480:"3,14", 1152966113385875392:"14,15",1152966113386367424:"13,4"},
-								 #  {1152966113386660480:"3,13",1152966113386676544:"13,15",1152966113386367424:"14,4"},
+		self.routesNode1toNode2 = [  {1152966113386660480:"3,15", 1152966113386367424:"15,4"},
+								 # {1152966113386660480:"3,13", 1152966113385875392:"13,15",1152966113386367424:"14,4"},
+								 #  {1152966113386660480:"3,14",1152966113386676544:"14,15",1152966113386367424:"13,4"},
 								   {1152966113386660480:"3,16",1152966113386367424:"16,4"}
 								   ]
 		self.flowCounts=0 #for round-robin purpose
 		self.ipNode1 = "10.10.2.14"
 		self.ipNode2 = "10.10.2.129"
+		self.dpset = kwargs['dpset']
+		self.appPort = 5031
 		
 	
 	@set_ev_cls(ofp_event.EventOFPStateChange,
                 [MAIN_DISPATCHER, DEAD_DISPATCHER])
 	def _state_change_handler(self, ev):
 		if ev.state == MAIN_DISPATCHER:
+			
 			#self.installDefaultHPFlow()
 			self.installDefaultFlow()
 
@@ -62,7 +72,10 @@ class MultiPathDistributor(app_manager.RyuApp):
 
 	def installDefaultFlow(self):
 		url = "http://localhost:8080/stats/flowentry/modify"
-		route_dict = self.routesNode1toNode2[0]
+
+		#route_dict = self.routesNode1toNode2[3]
+		#route_dict = {1152966113386660480:"3,16",1152966113386367424:"16,4"}
+		route_dict = {1152966113386660480:"3,13", 1152966113385875392:"13,15",1152966113386367424:"14,4"}
 		for switch_dpid in route_dict.keys():
 			inputport =  int(route_dict[switch_dpid].split(",")[0])
 			outputport = int(route_dict[switch_dpid].split(",")[1])
@@ -107,13 +120,14 @@ class MultiPathDistributor(app_manager.RyuApp):
 			          "match": {
 			            "dl_type": 0x800,
 			             "nw_proto": 6,
-			             "tp_dst": 5031
+			             "tp_dst": self.appPort
 			                },
 			          "actions":[ 
 				
 			             {"type":"OUTPUT",
 			             "port": ofproto_v1_0.OFPP_CONTROLLER
 			             },
+				    
 	
 			          ]
 			        }
@@ -121,58 +135,40 @@ class MultiPathDistributor(app_manager.RyuApp):
 		self.logger.info(response.text)
 			
 	
+	def add_flow(self, datapath, priority, match, actions):
+		ofproto = datapath.ofproto
+		parser = datapath.ofproto_parser
 
+		#inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,
+                #                             actions)]
+
+		mod = parser.OFPFlowMod(datapath=datapath,match=match, cookie=0,
+                                command=ofproto.OFPFC_ADD,priority=priority,flags=ofproto.OFPFF_SEND_FLOW_REM, actions=actions)
+		datapath.send_msg(mod)
+
+	
 	def installFlowN(self,n,ipSrc,ipDst,tcpSrc,tcpDst,dlSrc,dlDst):
+
+		ipSrc = struct.unpack('!I', ipv4_to_bin(ipSrc))[0]
+		ipDst = struct.unpack('!I', ipv4_to_bin(ipDst))[0]
 		url = "http://localhost:8080/stats/flowentry/modify"
 		route_dict = self.routesNode1toNode2[n]
 		for switch_dpid in route_dict.keys():
 			inputport =  int(route_dict[switch_dpid].split(",")[0])
 			outputport = int(route_dict[switch_dpid].split(",")[1])
-			payload = {
-			          "dpid": switch_dpid,
-			          "table_id": 0,
-			          "priority": 3100,
-			          "match": {
-			            "nw_src": ipSrc,				  
-			             "dl_type": 0x800,
-				    # "dl_src":dlSrc,
-				    # "dl_dst":dlDst,
-			            "nw_dst": ipDst,
-			             "tp_src": tcpSrc, 
-			             "nw_proto": 6,
-			             "tp_dst": tcpDst,
-			                },
-			          "actions":[ 
-			             {"type":"OUTPUT",
-			             "port": outputport}
-			          ]
-			        }
-			response = requests.post(url,data=json.dumps(payload))
-			#self.logger.info(response.text)
+			
+			datapath = self.dpset.get(switch_dpid)
+			parser = datapath.ofproto_parser
+			match = parser.OFPMatch(nw_src=ipSrc,dl_type=2048,nw_dst=ipDst,nw_proto=6,tp_src=int(tcpSrc),tp_dst=int(tcpDst))
+			actions = [parser.OFPActionOutput(outputport)]
+			self.add_flow(datapath,500,match,actions)		
+				
 
-			#install reverse flow
-			payload = {
-			          "dpid": switch_dpid,
-			          "table_id": 0,
-			          "priority": 3100,
-			          "match": {				    
-			             "nw_dst": ipSrc,
-				    # "dl_src":dlDst,
-				    # "dl_dst":dlSrc,
-			             "dl_type": 0x800,
-			             "nw_src": ipDst,
-			             "tp_dst": tcpSrc, 
-			             "nw_proto": 6,
-			             "tp_src": tcpDst,
-			                },
-			          "actions":[ 
-			             {"type":"OUTPUT",
-			             "port": inputport}
-			          ]
-			        }
-			response = requests.post(url,data=json.dumps(payload))
-			#self.logger.info(response.text)
+			match = parser.OFPMatch(nw_src=ipDst,dl_type=2048,nw_dst=ipSrc,nw_proto=6,tp_src=int(tcpDst),tp_dst=int(tcpSrc))
+			actions = [parser.OFPActionOutput(inputport)]
+			self.add_flow(datapath,500,match,actions)		
 
+		
 
 
 	def _send_packet(self, datapath, port, pkt):
@@ -208,6 +204,7 @@ class MultiPathDistributor(app_manager.RyuApp):
 		dlSrc = eth.src
 		dlDst = eth.dst
 		
+		print "\nNew packet-in"
 		print "dpid %d"%(datapath.id)
 		print "eth.ethertype %04x" %(eth.ethertype)
 		print "eth contents: "
@@ -246,7 +243,7 @@ class MultiPathDistributor(app_manager.RyuApp):
 					
 
 						#bbcp flows
-						if (dstTCP == 5031):
+						if (dstTCP == self.appPort):
 							#self,n,ipSrc,ipDst,tcpSrc,tcpDst
 							whichFlow = self.flowCounts % len(self.routesNode1toNode2)
 							self.installFlowN(whichFlow,srcIP,dstIP,srcTCP,dstTCP,dlSrc,dlDst)
@@ -254,11 +251,11 @@ class MultiPathDistributor(app_manager.RyuApp):
 							self.logger.info("number of bbcp flows: %d",self.flowCounts)
 							self.logger.info("last bbcp flow  is installed to path %d",whichFlow)
 							
-							new_pkt = packet.Packet()
-							new_pkt.add_protocol(eth)
-							new_pkt.add_protocol(ip)
-							new_pkt.add_protocol(tcp_pkt)
-							self._send_packet(datapath,15,new_pkt)
+							#new_pkt = packet.Packet()
+							#new_pkt.add_protocol(eth)
+							#new_pkt.add_protocol(ip)
+							#new_pkt.add_protocol(tcp_pkt)
+							#self._send_packet(datapath,15,new_pkt)
 
 
 
