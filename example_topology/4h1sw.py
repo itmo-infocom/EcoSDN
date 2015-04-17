@@ -11,7 +11,8 @@ if '__main__' == __name__:
 
     c0 = net.addController('c0',ip="127.0.0.1")
 
-    s1 = net.addSwitch('s1',cls=UserSwitch)
+    #s1 = net.addSwitch('s1',cls=UserSwitch)
+    s1 = net.addSwitch('s1',protocols="OpenFlow13")
 
     h1 = net.addHost('h1', mac='00:00:00:00:00:11')
     h2 = net.addHost('h2', mac='00:00:00:00:00:12')
