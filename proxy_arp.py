@@ -7,7 +7,6 @@ import struct
 
 from ryu.base import app_manager
 from ryu.controller import dpset
-from ryu.controller import mac_to_port
 from ryu.controller import ofp_event
 from ryu.controller.handler import MAIN_DISPATCHER
 from ryu.controller.handler import set_ev_cls
@@ -23,6 +22,8 @@ import time
 import requests
 import json
 import ast
+
+from routing_module import RoutingModule
 
 class ARPRequest(object):
 	def __init__(self, sourceMACAddress,sourceIPAddress,targetMACAddress,targetIPAddress,datapath,inPort):
@@ -42,9 +43,12 @@ class ProxyARP(app_manager.RyuApp):
 		'dpset': dpset.DPSet,
 	}
 
+	mac_to_port = {}
+
 	def __init__(self, *args, **kwargs):
 		super(ProxyARP, self).__init__(*args, **kwargs)
 		self.ip_to_mac = {}
+		#self.mac_to_port = {}
 		self.arpRequests={}
 		self.dpset = None
 		self.enabled = True
@@ -61,6 +65,15 @@ class ProxyARP(app_manager.RyuApp):
 					macAddress = ip_macs[ipAddr]
 					return macAddress
 		return macAddress
+
+	@staticmethod
+	def getDPIDnPort(macAddress):
+		for dpid,macs_port in ProxyARP.mac_to_port.iteritems():
+			for mac in macs_port:
+				if mac ==macAddress:
+					port = macs_port[mac]
+					return {"dpid":dpid, "port":port}
+		return None
 
 	def setStatus(self, enabled):
 		self.enabled = enabled
@@ -85,10 +98,11 @@ class ProxyARP(app_manager.RyuApp):
 		eth = pkt.get_protocols(ethernet.ethernet)[0]
 
 		if not(eth.ethertype == ether.ETH_TYPE_ARP):
-			print eth.ethertype
+			#print eth.ethertype
 			return
 
 		self.ip_to_mac.setdefault(dpid, {})
+		ProxyARP.mac_to_port.setdefault(dpid, {})
 
 		#get the ARP packet
 		arp_pkt = pkt.get_protocols(arp.arp)[0]
@@ -96,6 +110,14 @@ class ProxyARP(app_manager.RyuApp):
 		#learn the ip-mac
 		self.ip_to_mac[dpid][arp_pkt.src_ip] = arp_pkt.src_mac
 		print "learning ip-mac: host "+arp_pkt.src_mac+ " is at %d port %d" % (dpid,in_port)
+
+		#learn the mac-port
+		ProxyARP.mac_to_port[dpid][eth.src] = in_port
+		src= eth.src
+		if src not in RoutingModule.net:
+			RoutingModule.net.add_node(src)
+			RoutingModule.net.add_edge(dpid,src,{'port':in_port})
+			RoutingModule.net.add_edge(src,dpid)
 
 		if (arp_pkt.opcode == arp.ARP_REQUEST):
 			self.handleARPRequest(arp_pkt,datapath,in_port)
