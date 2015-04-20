@@ -65,7 +65,7 @@ class UtilizationReporter(app_manager.RyuApp):
 				self.logger.debug('register datapath: %016x', datapath.id)
 				self.datapaths[datapath.id] = datapath
 				self.portUtils[datapath.id] = []
-				for i in range(0,20):
+				for i in range(0,25):
 					self.portUtils[datapath.id].append(MyPort(i))
 					
 					#for testing

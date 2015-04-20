@@ -2,11 +2,18 @@
 #
 ############# Adaptive Link Rate ##############
 #
-# PUT /alr/{SWITCH_ID}/PORT   Activate ALR on PORT with data: threshold
+# PUT /alr/{SWITCH_ID}/{PORT}   Activate ALR on PORT with data: threshold
 #
-# GET /alr/{SWITCH_ID}/PORT Get ALR status: rate, threshold
+# GET /alr/{SWITCH_ID}/{PORT} Get ALR status: rate, threshold
 #
-# DELETE /alr/{SWITCH_ID}/PORT    Delete ARL configuration for the switch
+# DELETE /alr/{SWITCH_ID}/{PORT}    Delete ARL configuration for the switch
+#
+# GET /alr/speed/{SWITCH_IP}/{PORT}		Get speed of the port
+# 
+# PUT /alr/speed/{SWITCH_IP}/{PORT}		Set speed of the port
+#
+#
+#
 #
 
 import logging
@@ -98,3 +105,30 @@ class AdaptiveLinkRateController(ControllerBase):
 			msg = {'result': 'failed'}
 			return Response(status=404,content_type='application/json',
 				body=json.dumps(msg))
+
+
+	# GET /alr/speed/{SWITCH_IP}/{PORT}		Get speed of the port
+	@route('alr', '/v1.0/alr/speed/{switchIP}/{port}', methods=['GET'])
+	def get_speed(self, req,switchIP,port,**kwargs):
+		result = self.adaptive_linkrate.getPortSpeed(switchIP,int(port)) 
+		msg = {'set_speed': result}
+		return Response(status=200,content_type='application/json',
+			body=json.dumps(msg))
+
+	# PUT /alr/speed/{SWITCH_IP}/{PORT}		Set speed of the port
+	@route('alr', '/v1.0/alr/speed/{switchIP}/{port}', methods=['PUT'])
+	def set_speed(self, req,switchIP,port,**kwargs):
+		try:
+			rest = json.loads(req.body) if req.body else {}
+		except SyntaxError:
+			AdaptiveLinkRateController._LOGGER.debug('invalid syntax %s', req.body)
+			return Response(status=400)
+
+		speed = int(rest.get("speed"))
+		result = self.adaptive_linkrate.setPortSpeed(switchIP,int(port),speed)
+		if result:
+			msg = {'result': 'success'}
+			return Response(status=200,content_type='application/json',
+				body=json.dumps(msg))
+	
+

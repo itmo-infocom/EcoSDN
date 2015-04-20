@@ -2,6 +2,7 @@ import logging
 import json
 from webob import Response
 
+
 from ryu.base import app_manager
 from ryu.controller import ofp_event
 from ryu.controller.handler import MAIN_DISPATCHER
@@ -19,6 +20,7 @@ from ryu.lib import dpid as dpid_lib
 
 import utilization_event
 import MyPorts
+import HP3600.cli
 
 class AdaptiveLinkRate(app_manager.RyuApp):
 	OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
@@ -51,6 +53,22 @@ class AdaptiveLinkRate(app_manager.RyuApp):
 
 	def getstatus(self,switchid,portid):
 		return MyPorts.portUtils[switchid][portid].alr_enabled
+
+	def setPortSpeed(self,ip,portToConfigure,speed):
+		client,chan = HP3600.cli.connect(host=ip)
+		out = set_speed(chan,portToConfigure,speed)
+		print out
+
+		chan.close()
+		client.close()
+
+	def getPortSpeed(self,ip,portToConfigure,speed):
+		client,chan = HP3600.cli.connect(host=ip)
+		out = get_speed(chan,portToConfigure)
+		print out
+
+		chan.close()
+		client.close()
 
 	@set_ev_cls(utilization_event.UtilizationEvent)
 	def UtilizationEventHandler(self,ev):
