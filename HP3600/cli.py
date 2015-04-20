@@ -76,7 +76,8 @@ def set_speed(chan,port=20,speed=1000):
 
 	chan.send('config\n')
 	out.append(sw_rd(chan))
-	chan.send('int %d speed-duplex %d-full\n') % (port,speed)
+	chan.send('int %d speed-duplex auto-%d\n' % (port,speed))
+	out.append(sw_rd(chan))
 	out.append(sw_rd(chan))
 
 	return out
