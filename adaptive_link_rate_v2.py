@@ -28,8 +28,6 @@ class AdaptiveLinkRate(app_manager.RyuApp):
 
 	def __init__(self, *args,**kwargs):
 		super(AdaptiveLinkRate,self).__init__(*args,**kwargs)
-
-
 	
 
 	"""
@@ -56,19 +54,20 @@ class AdaptiveLinkRate(app_manager.RyuApp):
 
 	def setPortSpeed(self,ip,portToConfigure,speed):
 		client,chan = HP3600.cli.connect(host=ip)
-		out = set_speed(chan,portToConfigure,speed)
-		print out
+		out = HP3600.cli.set_speed(chan,portToConfigure,speed)
+		
 
 		chan.close()
 		client.close()
+		return out
 
-	def getPortSpeed(self,ip,portToConfigure,speed):
+	def getPortSpeed(self,ip,portToConfigure):
 		client,chan = HP3600.cli.connect(host=ip)
-		out = get_speed(chan,portToConfigure)
-		print out
+		out = HP3600.cli.get_speed(chan,portToConfigure)
 
 		chan.close()
 		client.close()
+		return out
 
 	@set_ev_cls(utilization_event.UtilizationEvent)
 	def UtilizationEventHandler(self,ev):

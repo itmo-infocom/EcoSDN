@@ -110,8 +110,11 @@ class AdaptiveLinkRateController(ControllerBase):
 	# GET /alr/speed/{SWITCH_IP}/{PORT}		Get speed of the port
 	@route('alr', '/v1.0/alr/speed/{switchIP}/{port}', methods=['GET'])
 	def get_speed(self, req,switchIP,port,**kwargs):
+		print switchIP
+		print port
 		result = self.adaptive_linkrate.getPortSpeed(switchIP,int(port)) 
-		msg = {'set_speed': result}
+		print result
+		msg = {'get_speed': result}
 		return Response(status=200,content_type='application/json',
 			body=json.dumps(msg))
 

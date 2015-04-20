@@ -1,6 +1,7 @@
 import paramiko
 import sys
 import select
+import re
 
 def connect(host = '10.10.10.13', user = 'root', secret = '123456', port = 22):
 
@@ -87,8 +88,16 @@ def get_speed(chan,port=20):
 	if type(port) == types.StringType:
 		port = int(port)
 
-	chan.send('show int brief %d\n') % (port)
+	chan.send('show int brief %d\n' % port)
 	out.append(sw_rd(chan))
+	out.append(sw_rd(chan))
+	#out.append(sw_rd(chan))
+	#out.append(sw_rd(chan))
+	
+	for entry in out:
+		temp = re.findall('\d+FDx',entry)
+		if temp:
+			return temp[0]
 
 	return out
 
