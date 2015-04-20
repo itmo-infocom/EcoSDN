@@ -143,7 +143,7 @@ class MultiPathDistributor(app_manager.RyuApp):
                 #                             actions)]
 
 		mod = parser.OFPFlowMod(datapath=datapath,match=match, cookie=0,
-                                command=ofproto.OFPFC_ADD,priority=priority,flags=ofproto.OFPFF_SEND_FLOW_REM, actions=actions)
+                                command=ofproto.OFPFC_ADD,priority=priority,flags=ofproto.OFPFF_SEND_FLOW_REM, actions=actions, idle_timeout=30*60,hard_timeout=6*3600)
 		datapath.send_msg(mod)
 
 	
