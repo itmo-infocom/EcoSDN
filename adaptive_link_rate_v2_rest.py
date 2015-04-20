@@ -110,8 +110,6 @@ class AdaptiveLinkRateController(ControllerBase):
 	# GET /alr/speed/{SWITCH_IP}/{PORT}		Get speed of the port
 	@route('alr', '/v1.0/alr/speed/{switchIP}/{port}', methods=['GET'])
 	def get_speed(self, req,switchIP,port,**kwargs):
-		print switchIP
-		print port
 		result = self.adaptive_linkrate.getPortSpeed(switchIP,int(port)) 
 		print result
 		msg = {'get_speed': result}
@@ -134,4 +132,23 @@ class AdaptiveLinkRateController(ControllerBase):
 			return Response(status=200,content_type='application/json',
 				body=json.dumps(msg))
 	
+	# PUT /alr/port/{SWITCH_IP}/{PORT}		Enable/disable port
+	@route('alr', '/v1.0/alr/port/{switchIP}/{port}', methods=['PUT'])
+	def enableDisablePort(self, req,switchIP,port,**kwargs):
+		try:
+			rest = json.loads(req.body) if req.body else {}
+		except SyntaxError:
+			AdaptiveLinkRateController._LOGGER.debug('invalid syntax %s', req.body)
+			return Response(status=400)
 
+		enabled = int(rest.get("enabled"))
+		if enabled.lower() == "true":
+			result = self.adaptive_linkrate.enableDisablePort(switchIP,int(port),1)
+		else:
+			result = self.adaptive_linkrate.enableDisablePort(switchIP,int(port),0)
+		if result:
+			msg = {'result': 'success',
+					'detail': result
+					}
+			return Response(status=200,content_type='application/json',
+				body=json.dumps(msg))

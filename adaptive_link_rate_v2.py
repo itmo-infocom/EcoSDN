@@ -69,6 +69,14 @@ class AdaptiveLinkRate(app_manager.RyuApp):
 		client.close()
 		return out
 
+	def enableDisablePort(self,ip,portToConfigure,status):
+		client,chan = HP3600.cli.connect(host=ip)
+		out = HP3600.cli.get_speed(chan,portToConfigure,status)
+
+		chan.close()
+		client.close()
+		return out
+
 	@set_ev_cls(utilization_event.UtilizationEvent)
 	def UtilizationEventHandler(self,ev):
 		for dpid,ports in MyPorts.portUtils.iteritems():
