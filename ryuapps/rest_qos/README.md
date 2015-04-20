@@ -1,10 +1,3 @@
-# EcoSDN
-Ecology related SDN solutions
-
-
-
-
-
 ### REST API for QoS Settings in [of12softswitch](https://github.com/itmo-infocom/of12softswitch) and [ofsoftswitch13](https://github.com/satrianachandra/ofsoftswitch13)
 
 The module rest_qos_ss.py is used to provide REST API for QoS settings in of12softswitch and ofsoftswitch13.
