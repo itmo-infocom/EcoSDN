@@ -102,7 +102,7 @@ def get_speed(chan,port=20):
 
 	return out
 
-def enableDisablePort(chan,port=20,status):
+def enableDisablePort(chan,status,port=20):
 	import types
 	out = []
 	if type(port) == types.StringType:
@@ -111,9 +111,11 @@ def enableDisablePort(chan,port=20,status):
 	chan.send('config\n')
 	out.append(sw_rd(chan))
 	if status == 0:
-		chan.send('int %d disable\n' % port)
+		chan.send("int %d disable\n" % (port))
+		print "port %d is disabled" % (port)
 	else:
-		chan.send('int %d enable\n' % port)
+		chan.send("int %d enable\n" % (port))
+		print "port %d is enabled" % (port)		
 	out.append(sw_rd(chan))
 
 	return out

@@ -141,11 +141,12 @@ class AdaptiveLinkRateController(ControllerBase):
 			AdaptiveLinkRateController._LOGGER.debug('invalid syntax %s', req.body)
 			return Response(status=400)
 
-		enabled = int(rest.get("enabled"))
+		enabled = rest.get("enabled")
+		print enabled
 		if enabled.lower() == "true":
-			result = self.adaptive_linkrate.enableDisablePort(switchIP,int(port),1)
-		else:
-			result = self.adaptive_linkrate.enableDisablePort(switchIP,int(port),0)
+			result = self.adaptive_linkrate.enableDisablePort(switchIP,1,int(port))
+		elif enabled.lower() == "false":
+			result = self.adaptive_linkrate.enableDisablePort(switchIP,0,int(port))
 		if result:
 			msg = {'result': 'success',
 					'detail': result
