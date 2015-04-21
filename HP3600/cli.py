@@ -49,6 +49,8 @@ def set_bw(chan, port=20, bw='50 50 0 0 0 0 0 0'):
 
 	chan.send('config\n')
 	out.append(sw_rd(chan))
+	print port
+	print bw
 	chan.send('int %d bandwidth-min output %s\n' % (port, bw))
 	out.append(sw_rd(chan))
 
@@ -56,7 +58,11 @@ def set_bw(chan, port=20, bw='50 50 0 0 0 0 0 0'):
 
 #to get bandwidth-min output
 def get_bw(chan, port=20):
+	import types
 	out = []
+	if type(port) == types.StringType:
+		port = int(port)	
+
 	chan.send('show bandwidth output %d\n' % port)
 	out.append(sw_rd(chan))
 	out.append(sw_rd(chan))

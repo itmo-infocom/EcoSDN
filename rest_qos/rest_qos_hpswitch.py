@@ -757,7 +757,7 @@ class QoS(object):
 		#queue_id = 1
 		queue_config = []
 		
-		port_name = rest.get(REST_PORT_NAME, None)
+		port_name = int(rest.get(REST_PORT_NAME, None))
 		if port_name is None:
 			raise ValueError('Required to specify port_name')
 		#todo:need checking if the port exists
