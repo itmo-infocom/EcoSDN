@@ -738,12 +738,18 @@ class QoS(object):
 		client.close()
 		return REST_COMMAND_RESULT, msg
 
+
+	#for HP switch, it is not possible to set specific queue id's bw,
+	#well it's possible, but need to parse result from show bw
+	#curl -X POST -d '{"port_name": "1", "queues": [{min_rate":"50", "max_rate":"70"}]}' \
+	#http://localhost:8080/qos/queue/0000000000000001
+
 	@rest_command
 	def set_queue(self, rest, vlan_id):
 
 		if self.unix_socket is None:
 			msg = {'result': 'failed',
-			   'details': 'unix socket is not set'}
+			   'details': 'switch address is not set'}
 			return REST_COMMAND_RESULT, msg
 
 		queue_list = {}
@@ -754,48 +760,27 @@ class QoS(object):
 		port_name = rest.get(REST_PORT_NAME, None)
 		if port_name is None:
 			raise ValueError('Required to specify port_name')
-
 		#todo:need checking if the port exists
 
+		
 		for queue in queues:
 			#max_rate = queue.get(REST_QUEUE_MAX_RATE, None)
 			min_rate = queue.get(REST_QUEUE_MIN_RATE, None)
-			max_rate = queue.get(REST_QUEUE_MAX_RATE, None)
-			queue_id = queue.get(REST_QUEUE_ID, None)
 			config = {}
 			if min_rate is not None:
 				config['min-rate'] = min_rate
 			else:
 				raise ValueError('Required to specify min_rate\n')
 
-			if max_rate is not None:
-				config['max-rate'] = max_rate
+			client,chan = HP3600.cli.connect(host=self.unix_socket)
+			result = HP3600.cli.set_bw(chan,port_name,min_rate)
 
-			if queue_id is not None:
-				config['id'] = queue_id
-			else:
-				raise ValueError('Required to specify queue id\n')
-			if len(config):
-				queue_config.append(config)
-			queue_list[queue_id] = {'config': config}
-			HP3600.cli.setQueue(self.unix_socket,port_name,queue_id,min_rate)
-
-			#setting ceil value for the queue
-			if max_rate is not None:
-				cmd = 'dpctl ' + 'unix:'+ self.unix_socket + ' queue-mod %s %s %s' % (port_name, queue_id, min_rate)
-
-				device_name = self.unix_socket.split('/')[-1]
-				real_min_rate = (int(min_rate) /1000.0) * 10000 # default rate is 10000Mbit as defined in netdev.c
-				real_max_rate = (int(max_rate) /1000.0) * 10000 # default rate is 10000Mbit as defined in netdev.c
-				cmd = 'tc class change dev '+device_name+'-eth'+port_name+' parent 1:ffff classid 1:'+queue_id+' htb rate %fMbit ceil %fMbit' %(real_min_rate,real_max_rate)
-				#LOG.info(cmd)
-				ret = subprocess.call(cmd, shell=True)
-				if ret != 0:
-					raise ValueError('Need root permission')
-				self.queues_max_rate[port_name+','+queue_id] = max_rate
+			chan.close()
+			client.close()
 
 		msg = {'result': 'success',
-			   'details': queue_list}
+			   'details': result}
+
 
 		return REST_COMMAND_RESULT, msg
 
