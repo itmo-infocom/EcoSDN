@@ -437,7 +437,7 @@ class QoSController(ControllerBase):
 
 	@route('qos_switch', BASE_URL + '/queue/{switchid}/{portid}',
 		   methods=['GET'], requirements=REQUIREMENTS)
-	def get_queue(self, req, switchid, **_kwargs):
+	def get_queue(self, req, switchid,portid, **_kwargs):
 		return self._access_switch(req, switchid, VLANID_NONE,
 								   'get_queue_port', None,portid)
 
@@ -724,16 +724,18 @@ class QoS(object):
 			msg = {'result': 'failed',
 			   'details': 'switch address is not set'}
 			return REST_COMMAND_RESULT, msg
-
-		result = HP3600.cli.get_bw(self.unix_socket,port_id)
+		client,chan = HP3600.cli.connect(host=self.unix_socket)
+		result = HP3600.cli.get_bw(chan,int(port_id))
 
 		if len(result):
 			msg = {'result': 'success',
-				   'details': self._getQueueConfigs(portsWithQueue)}
+				   'details': result}
 		else:
 		   msg = {'result': 'failure',
 				   'details': 'Queue is not exists.'}
 
+		chan.close()
+		client.close()
 		return REST_COMMAND_RESULT, msg
 
 	@rest_command
