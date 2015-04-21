@@ -1,5 +1,5 @@
 #/bin
-## REST API for of12softwitch QoS configuration
+## REST API for HP 3500 yl QoS configuration
 
 import logging
 import json
@@ -29,6 +29,10 @@ from ryu.ofproto import ofproto_v1_3_parser
 from ryu.ofproto import ether
 from ryu.ofproto import inet
 
+import os
+parentdir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+os.sys.path.insert(0,parentdir) 
+import HP3600.cli
 
 import subprocess 
 from subprocess import Popen, PIPE
@@ -431,6 +435,12 @@ class QoSController(ControllerBase):
 		return self._access_switch(req, switchid, VLANID_NONE,
 								   'get_queue', None)
 
+	@route('qos_switch', BASE_URL + '/queue/{switchid}/{portid}',
+		   methods=['GET'], requirements=REQUIREMENTS)
+	def get_queue(self, req, switchid, **_kwargs):
+		return self._access_switch(req, switchid, VLANID_NONE,
+								   'get_queue_port', None,portid)
+
 	@route('qos_switch', BASE_URL + '/queue/{switchid}',
 		   methods=['POST'], requirements=REQUIREMENTS)
 	def set_queue(self, req, switchid, **_kwargs):
@@ -530,6 +540,8 @@ class QoSController(ControllerBase):
 				if queueid != -1:
 					#todo: check if the queue exists or not
 					msg = function(rest, vid,portid,queueid)
+				elif portid != -1:
+					msg = function(rest, vid,portid)
 				else:
 					if waiters is not None:
 						msg = function(rest, vid, waiters)
@@ -692,12 +704,30 @@ class QoS(object):
 	def get_queue(self, rest, vlan_id):
 		if self.unix_socket is None:
 			msg = {'result': 'failed',
-			   'details': 'unix socket is not set'}
+			   'details': 'switch address is not set'}
 			return REST_COMMAND_RESULT, msg
 
 		portsWithQueue = self._getPortsWithQueue()
 
 		if len(portsWithQueue):
+			msg = {'result': 'success',
+				   'details': self._getQueueConfigs(portsWithQueue)}
+		else:
+		   msg = {'result': 'failure',
+				   'details': 'Queue is not exists.'}
+
+		return REST_COMMAND_RESULT, msg
+
+	@rest_command
+	def get_queue_port(self, rest, vlan_id,port_id):
+		if self.unix_socket is None:
+			msg = {'result': 'failed',
+			   'details': 'switch address is not set'}
+			return REST_COMMAND_RESULT, msg
+
+		result = HP3600.cli.get_bw(self.unix_socket,port_id)
+
+		if len(result):
 			msg = {'result': 'success',
 				   'details': self._getQueueConfigs(portsWithQueue)}
 		else:
@@ -746,12 +776,7 @@ class QoS(object):
 			if len(config):
 				queue_config.append(config)
 			queue_list[queue_id] = {'config': config}
-			cmd = 'dpctl ' + 'unix:'+ self.unix_socket + ' queue-mod %s %s %s' % (port_name, queue_id, min_rate)
-			#LOG.info(cmd)
-			ret = subprocess.call(cmd, shell=True)
-			if ret != 0:
-				raise ValueError('Need root permission')
-			#queue_id += 1
+			HP3600.cli.setQueue(self.unix_socket,port_name,queue_id,min_rate)
 
 			#setting ceil value for the queue
 			if max_rate is not None:
