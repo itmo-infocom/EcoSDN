@@ -845,6 +845,9 @@ class QoS(object):
 
 		actions = []
 		action = rest.get(REST_ACTION, None)
+		#below value is from #show qos queue-config
+		queueIdToVlanPcp = {"1":"1","2":"2","3":"0","4":"3","5":"4","6":"5","7":"6","8":"7"}
+
 		if action is not None:
 			if REST_ACTION_MARK in action:
 				actions.append({'type': 'SET_FIELD',
@@ -854,14 +857,18 @@ class QoS(object):
 				actions.append({'type': 'METER',
 								'meter_id': action[REST_ACTION_METER]})
 			if REST_ACTION_QUEUE in action:
-				actions.append({'type': 'SET_QUEUE',
-								'queue_id': action[REST_ACTION_QUEUE]})
+				#SET_QUEUE is not supported by HP switch
+				actions.append({"type": "SET_VLAN_PCP", "vlan_pcp": queueIdToVlanPcp[action[REST_ACTION_QUEUE]] })
 		else:
-			actions.append({'type': 'SET_QUEUE',
-							'queue_id': 0})
+			actions.append({"type": "SET_VLAN_PCP", "vlan_pcp": "3"})
+		outputPort = int(action["port"])
+		
+		if outputPort = None:
+			raise ValueError('port must be specified')
 
-		actions.append({'type': 'GOTO_TABLE',
-						'table_id': QOS_TABLE_ID + 1})
+		#of 1.0 in HP doesnt support multi table
+		actions.append({'type': 'OUTPUT',
+						'port': outputPort })
 		flow = self._to_of_flow(cookie=cookie, priority=priority,
 								match=match, actions=actions)
 
