@@ -863,7 +863,7 @@ class QoS(object):
 			actions.append({"type": "SET_VLAN_PCP", "vlan_pcp": "3"})
 		outputPort = int(action["port"])
 		
-		if outputPort = None:
+		if outputPort == None:
 			raise ValueError('port must be specified')
 
 		#of 1.0 in HP doesnt support multi table
