@@ -233,7 +233,7 @@ REST_METER_ACTION_REMARK = 'remark'
 
 DEFAULT_FLOW_PRIORITY = 0
 QOS_PRIORITY_MAX = ofproto_v1_3_parser.UINT16_MAX - 1
-QOS_PRIORITY_MIN = 1
+QOS_PRIORITY_MIN = 2
 
 VLANID_NONE = 0
 VLANID_MIN = 2
@@ -847,7 +847,7 @@ class QoS(object):
 		action = rest.get(REST_ACTION, None)
 		#below value is from #show qos queue-config
 		queueIdToPriority = {"1":"1","2":"2","3":"0","4":"3","5":"4","6":"5","7":"6","8":"7"}
-		queueIdToNwTos = {"1":"8","2":"14","3":"0","4":"24","5":"26","6":"30","7":"34","8":"38"}
+		#queueIdToNwTos = {"1":0b00100000,"2":0b00111000,"3":0b00000000,"4":0b01100000,"5":0b01101000,"6":0b01111000,"7":0b10001000,"8":0b10011000}
 		if action is not None:
 			if REST_ACTION_MARK in action:
 				actions.append({'type': 'SET_FIELD',
@@ -858,9 +858,10 @@ class QoS(object):
 								'meter_id': action[REST_ACTION_METER]})
 			if REST_ACTION_QUEUE in action:
 				#SET_QUEUE is not supported by HP switch
-				actions.append({"type": "SET_NW_TOS", "nw_tos": int(queueIdToNwTos[action[REST_ACTION_QUEUE]]) })
+				#actions.append({"type": "SET_VLAN_VID", "vlan_vid": 3})
+				actions.append({"type": "SET_VLAN_PCP", "vlan_pcp": queueIdToPriority[action[REST_ACTION_QUEUE]] })
 		else:
-			actions.append({"type": "SET_NW_TOS", "nw_tos": 0})
+			actions.append({"type": "SET_VLAN_PCP", "vlan_pcp": 0})
 		outputPort = int(action["port"])
 		
 		if outputPort == None:
